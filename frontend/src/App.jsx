@@ -31,7 +31,7 @@ const uuid = () => {
 function App() {
   const [user, setUser] = useState(null);
 
-  const server = "http://localhost:3000";
+  const server = "https://white-io.onrender.com";
 
   const connectionOptions = {
     "force new connection": true,
