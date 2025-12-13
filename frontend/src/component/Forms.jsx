@@ -1,6 +1,6 @@
-import CreateRoomForm from "./CreateRoomForm/";
-
+import CreateRoomForm from "./CreateRoomForm";
 import JoinRoomForm from "./JoinRoomForm";
+
 const Forms = ({ uuid, socket, setUser }) => {
   return (
     <div className="row h-100 p-5">

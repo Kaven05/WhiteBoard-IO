@@ -23,11 +23,13 @@ const WhiteBoard = ({
   const [isDrawing, setIsDrawing] = useState(false);
   const isRemoteUpdate = useRef(false);
 
+  // Receive remote updates: either full elements or a single element delta
   useEffect(() => {
     if (!socket) return;
     const handler = (data) => {
       if (!data) return;
 
+      // mark as remote so we don't emit when we re-render from this update
       isRemoteUpdate.current = true;
 
       if (Array.isArray(data.elements)) {
@@ -39,14 +41,17 @@ const WhiteBoard = ({
         setElements((prev) => {
           const newEl = data.element;
           
+          // Find if this element already exists by ID
           const existingIndex = prev.findIndex(el => el.id === newEl.id);
           
           if (existingIndex !== -1) {
+            // Update existing element
             const updated = [...prev];
             updated[existingIndex] = newEl;
             return updated;
           }
           
+          // Add new element
           return [...prev, newEl];
         });
       }
@@ -99,7 +104,8 @@ const WhiteBoard = ({
     const { x, y } = getPos(e);
     isRemoteUpdate.current = false;
 
-    const id = `${Date.now()}_${Math.random()}`;
+    // Generate unique ID for this element (timestamp + socket ID for uniqueness)
+    const id = `${socket?.id || 'local'}_${Date.now()}_${Math.random()}`;
 
     if (tool === "pencil") {
       setElements((p) => [
@@ -126,9 +132,19 @@ const WhiteBoard = ({
     const { x, y } = getPos(e);
     isRemoteUpdate.current = false;
 
-    setElements((prev) =>
-      prev.map((el, i) =>
-        i !== prev.length - 1
+    setElements((prev) => {
+      // Find the element we're currently drawing (by checking if it's ours)
+      const lastIndex = prev.length - 1;
+      if (lastIndex < 0) return prev;
+      
+      const lastEl = prev[lastIndex];
+      
+      // Only update if this is our element (has our socket ID in the id)
+      const isOurElement = lastEl.id?.startsWith(socket?.id || 'local');
+      if (!isOurElement) return prev;
+
+      return prev.map((el, i) =>
+        i !== lastIndex
           ? el
           : el.element === "rect"
           ? { ...el, width: x - el.x, height: y - el.y }
@@ -137,8 +153,8 @@ const WhiteBoard = ({
           : el.element === "pencil"
           ? { ...el, path: [...el.path, [x, y]] }
           : el
-      )
-    );
+      );
+    });
   };
 
   const handleUp = (e) => {
@@ -150,11 +166,13 @@ const WhiteBoard = ({
     setIsDrawing(false);
   };
 
+  // After every render of `elements`, redraw; if this update was local, emit only the LAST element (delta)
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
     if (!canvas || !ctx) return;
 
+    // clear device-pixel buffer
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const rc = rough.canvas(canvas);
 
@@ -184,6 +202,7 @@ const WhiteBoard = ({
       }
     });
 
+    // emit only last element for local updates
     if (!isRemoteUpdate.current && socket && socket.connected) {
       const last = elements[elements.length - 1];
       if (last) {
@@ -195,26 +214,26 @@ const WhiteBoard = ({
     isRemoteUpdate.current = false;
   }, [elements, socket, roomId]);
 
-return (
-  <div
-    className="overflow-hidden border border-dark px-0 mx-auto mt-3"
-    style={{ height: "500px" }}
-  >
-    <canvas
-      ref={canvasRef}
-      onPointerDown={handleDown}
-      onPointerMove={handleMove}
-      onPointerUp={handleUp}
-      onPointerCancel={handleUp}
-      style={{
-        width: "100%",
-        height: "100%",
-        touchAction: "none",
-        display: "block",
-      }}
-    />
-  </div>
-);
+  return (
+    <div
+      className="col-md-8 overflow-hidden border border-dark px-0 mx-auto mt-3"
+      style={{ height: "500px" }}
+    >
+      <canvas
+        ref={canvasRef}
+        onPointerDown={handleDown}
+        onPointerMove={handleMove}
+        onPointerUp={handleUp}
+        onPointerCancel={handleUp}
+        style={{
+          width: "100%",
+          height: "100%",
+          touchAction: "none",
+          display: "block",
+        }}
+      />
+    </div>
+  );
 };
 
 export default WhiteBoard;
